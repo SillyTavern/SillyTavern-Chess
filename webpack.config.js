@@ -16,10 +16,13 @@ module.exports = {
                     cacheDirectory: true,
                     presets: [
                         '@babel/preset-env',
-                        ['@babel/preset-react', { runtime: 'automatic' }],
                     ],
                 },
                 loader: 'babel-loader',
+            },
+            {
+                test: /.css$/,
+                use: ['style-loader', 'css-loader'],
             },
         ],
     },
@@ -27,6 +30,11 @@ module.exports = {
         minimize: true,
         minimizer: [new TerserPlugin({
             extractComments: false,
+            terserOptions: {
+                format: {
+                    comments: false,
+                },
+            },
         })],
     },
 };
