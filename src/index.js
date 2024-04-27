@@ -6,11 +6,26 @@ import '@chrisoakman/chessboardjs/dist/chessboard-1.0.0.min.css';
 import '@chrisoakman/chessboardjs/dist/chessboard-1.0.0.min';
 import './styles.css';
 
+/**
+ * Hacky way to import a module from an ST script file.
+ * @param {string} what Name of the exported member to import
+ * @returns {Promise<any>} The imported member
+ */
+async function importFromScript(what) {
+    const module = await import(/* webpackIgnore: true */'../../../../../script.js');
+    return module[what];
+}
+
+/**
+ * @type {(prompt: string, api: string, instructOverride: boolean, quietToLoud: boolean, systemPrompt: string, responseLength: number) => Promise<string>}
+ */
+const generateRaw = await importFromScript('generateRaw');
+
 class ChessGame {
     static gamesLaunched = 0;
 
-    static opponentMovePrompt = "You are a world-renowned chess grandmaster. You are given the representation of a chessboard state using the Forsyth-Edwards Notation (FEN). Output the best possible move JUST as a pair of coordinates, e.g. 'e2-e4'. You are playing as {{color}}.";
-    static commentPrompt = "{{char}} played a game of chess with {{user}}. {{user}} played as {{color}} and {{char}} played as {{opponent}}, and {{outcome}}! The final state of the board state in FEN notation: {{fen}}. Write a {{random:witty,playful,funny}} comment about the game from {{char}}'s perspective.";
+    static opponentMovePrompt = "You are a world-renowned chess grandmaster. You are given the representation of a chessboard state using the Forsyth-Edwards Notation (FEN) and ASCII. Select the best possible move from the list in algebraic notation and reply with JUST the move, e.g. 'Nc6'. You are playing as {{color}}.";
+    static commentPrompt = "{{char}} played a game of chess against {{user}}. {{user}} played as {{color}} and {{char}} played as {{opponent}}, and {{outcome}}! The final state of the board state in FEN notation: {{fen}}. Write a {{random:witty,playful,funny,quirky,zesty}} comment about the game from {{char}}'s perspective.";
 
     constructor(color) {
         if (color === 'random') {
@@ -55,7 +70,7 @@ class ChessGame {
 
         try {
             const message = context.chat[this.messageIndex];
-            message.mes = `[${context.name1} (${this.color}) played a game of chess with ${context.name2} (${this.getOpponentColor()}). Outcome: ${this.getOutcome()}]`;
+            message.mes = `[${context.name1} (${this.color}) played a game of chess against ${context.name2} (${this.getOpponentColor()}). Outcome: ${this.getOutcome()}]`;
             this.messageText.textContent = message.mes;
             this.chatMessage.style.order = '';
             const commentPromptText = ChessGame.commentPrompt
@@ -81,16 +96,19 @@ class ChessGame {
         }
 
         const fen = this.game.fen();
+        const moves = this.game.moves();
+        const ascii = this.game.ascii();
 
-        const promptText = ChessGame.opponentMovePrompt.replace('{{color}}', this.getOpponentColor().toUpperCase());
+        const systemPrompt = ChessGame.opponentMovePrompt
+            .replace('{{color}}', this.getOpponentColor().toUpperCase());
 
         const maxRetries = 3;
 
         for (let i = 0; i < maxRetries; i++) {
             try {
-                const command = `/genraw system="${promptText}" ${fen}`;
-                const reply = (await SillyTavern.getContext().executeSlashCommands(command)).pipe;
-
+                const movesString = 'Available moves:' + '\n' + moves.join(', ');
+                const prompt = [fen, ascii, movesString].join('\n\n');
+                const reply = await generateRaw(prompt, '', false, false, systemPrompt);
                 const move = parseMove(reply);
 
                 if (!move) {
@@ -115,7 +133,6 @@ class ChessGame {
 
         // Make a random move if we failed to generate a move
         console.warn('Chess: Making a random move');
-        const moves = this.game.moves();
         const move = moves[Math.floor(Math.random() * moves.length)];
         this.game.move(move);
         this.board.position(this.game.fen());
@@ -129,10 +146,16 @@ class ChessGame {
                 return regularMatch[0].split('-');
             }
 
-            const notationMatch = reply.match(/[BNRQK]?[a-h]?[1-8]?x?[a-h][1-8]/g);
+            const notationMatch = reply.match(/([NBRQK])?([a-h])?([1-8])?(x)?([a-h][1-8])(=[NBRQK])?(\+|#)?$|^O-O(-O)?/);
 
             if (notationMatch) {
                 return notationMatch[0];
+            }
+
+            for (const move of moves) {
+                if (reply.toLowerCase().includes(move.toLowerCase())) {
+                    return move;
+                }
             }
 
             return null;
@@ -275,7 +298,7 @@ class ChessGame {
         if (Array.isArray(context.chat)) {
             for (const message of context.chat) {
                 if (message.mes === this.gameId) {
-                    message.mes = `[${context.name1} plays a game of chess with ${context.name2}]`;
+                    message.mes = `[${context.name1} plays a game of chess against ${context.name2}]`;
                     this.messageIndex = context.chat.indexOf(message);
                     break;
                 }
