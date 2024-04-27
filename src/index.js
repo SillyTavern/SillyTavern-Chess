@@ -9,7 +9,8 @@ import './styles.css';
 class ChessGame {
     static gamesLaunched = 0;
 
-    static prompt = "You are a world-renowned chess grandmaster. You are given the representation of a chessboard state using the Forsyth-Edwards Notation (FEN). Output the best possible move JUST as a pair of coordinates, e.g. 'e2-e4'. You are playing as {{color}}.";
+    static opponentMovePrompt = "You are a world-renowned chess grandmaster. You are given the representation of a chessboard state using the Forsyth-Edwards Notation (FEN). Output the best possible move JUST as a pair of coordinates, e.g. 'e2-e4'. You are playing as {{color}}.";
+    static commentPrompt = "{{char}} played a game of chess with {{user}}. {{user}} played as {{color}} and {{char}} played as {{opponent}}, and {{outcome}}! The final state of the board state in FEN notation: {{fen}}. Write a {{random:witty,playful,funny}} comment about the game from {{char}}'s perspective.";
 
     constructor(color) {
         if (color === 'random') {
@@ -30,6 +31,46 @@ class ChessGame {
         return this.color === 'white' ? 'black' : 'white';
     }
 
+    getOutcome() {
+        if (this.game.isCheckmate()) {
+            return `${this.game.turn() === 'w' ? 'Black' : 'White'} wins by checkmate`;
+        }
+        else if (this.game.isStalemate()) {
+            return 'the game is a stalemate';
+        }
+        else if (this.game.isDraw()) {
+            return 'the game is a draw';
+        }
+        else if (this.game.isThreefoldRepetition()) {
+            return 'the game is a threefold repetition';
+        }
+        else {
+            return 'the game was inconclusive';
+        }
+    }
+
+    async endGame() {
+        const context = SillyTavern.getContext();
+        const injectId = `chess-${Math.random().toString(36).substring(2)}`;
+
+        try {
+            const message = context.chat[this.messageIndex];
+            message.mes = `[${context.name1} (${this.color}) played a game of chess with ${context.name2} (${this.getOpponentColor()}). Outcome: ${this.getOutcome()}]`;
+            this.messageText.textContent = message.mes;
+            this.chatMessage.style.order = '';
+            const commentPromptText = ChessGame.commentPrompt
+                .replace(/{{color}}/gi, this.color)
+                .replace(/{{opponent}}/gi, this.getOpponentColor())
+                .replace(/{{outcome}}/gi, this.getOutcome())
+                .replace(/{{fen}}/gi, this.game.fen());
+            const command = `/inject id="${injectId}" position="chat" depth="0" scan="true" role="system" ${commentPromptText} | /trigger await=true`;
+            await context.executeSlashCommands(command);
+        } finally {
+            // Clear the inject
+            await context.executeSlashCommands(`/inject id="${injectId}"`);
+        }
+    }
+
     async tryMoveOpponent() {
         if (!this.isOpponentTurn()) {
             return;
@@ -41,7 +82,7 @@ class ChessGame {
 
         const fen = this.game.fen();
 
-        const promptText = ChessGame.prompt.replace('{{color}}', this.getOpponentColor().toUpperCase());
+        const promptText = ChessGame.opponentMovePrompt.replace('{{color}}', this.getOpponentColor().toUpperCase());
 
         const maxRetries = 3;
 
@@ -194,7 +235,7 @@ class ChessGame {
 
     updateStatus() {
         if (this.game.isGameOver()) {
-            this.opponentStatusText.textContent = 'Game over';
+            this.opponentStatusText.textContent = 'Game over. Press ✕ to close';
         }
         else if (this.isOpponentTurn()) {
             this.opponentStatusText.textContent = 'Thinking...';
@@ -235,6 +276,7 @@ class ChessGame {
             for (const message of context.chat) {
                 if (message.mes === this.gameId) {
                     message.mes = `[${context.name1} plays a game of chess with ${context.name2}]`;
+                    this.messageIndex = context.chat.indexOf(message);
                     break;
                 }
             }
@@ -273,6 +315,35 @@ class ChessGame {
         const opponentStatusText = document.createElement('q');
         opponentStatusText.textContent = '';
         topRowContainer.appendChild(opponentStatusText);
+        const expander = document.createElement('div');
+        expander.classList.add('expander');
+        topRowContainer.appendChild(expander);
+        const undoButton = document.createElement('button');
+        undoButton.title = 'Undo';
+        undoButton.classList.add('menu_button', 'menu_button_icon', 'fa-solid', 'fa-undo');
+        undoButton.addEventListener('click', () => {
+            if (this.isOpponentTurn()) {
+                return;
+            }
+
+            // Undo two moves if it's the user's turn
+            this.game.undo();
+            this.board.position(this.game.fen());
+
+            this.game.undo();
+            this.board.position(this.game.fen());
+
+            this.updateStatus();
+            this.tryMoveOpponent();
+        });
+        topRowContainer.appendChild(undoButton);
+        const endGameButton = document.createElement('button');
+        endGameButton.title = 'End Game';
+        endGameButton.classList.add('menu_button', 'menu_button_icon', 'fa-solid', 'fa-times');
+        endGameButton.addEventListener('click', () => {
+            this.endGame();
+        });
+        topRowContainer.appendChild(endGameButton);
         container.appendChild(topRowContainer);
 
         const chessboardContainer = document.createElement('div');
@@ -321,6 +392,8 @@ class ChessGame {
 
         this.opponentStatusText = opponentStatusText;
         this.userStatusText = userStatusText;
+        this.messageText = messageText;
+        this.chatMessage = chatMessage;
 
         this.updateStatus();
         this.tryMoveOpponent();
