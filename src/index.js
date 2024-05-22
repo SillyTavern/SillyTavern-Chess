@@ -78,7 +78,7 @@ class ChessGame {
                 .replace(/{{opponent}}/gi, this.getOpponentColor())
                 .replace(/{{outcome}}/gi, this.getOutcome())
                 .replace(/{{fen}}/gi, this.game.fen());
-            const command = `/inject id="${injectId}" position="chat" depth="0" scan="true" role="system" ${commentPromptText} | /trigger await=true`;
+            const command = `/inject id="${injectId}" position="chat" depth="0" scan="true" role="system" ephemeral="true" ${commentPromptText} | /trigger await=true`;
             await context.executeSlashCommands(command);
         } finally {
             // Clear the inject
@@ -492,4 +492,16 @@ function addLaunchButton() {
 
 (function () {
     addLaunchButton();
+
+    const { eventSource, event_types } = SillyTavern.getContext();
+    eventSource.makeLast(event_types.CHAT_CHANGED, () => {
+        const { chatMetadata } = SillyTavern.getContext();
+        for (const key in chatMetadata) {
+            // Remove injects that got stuck in the chat metadata
+            if (/chess-[a-z0-9]+$/.test(key)) {
+                console.log('Removing stuck Chess inject', key);
+                delete chatMetadata[key];
+            }
+        }
+    });
 })();
