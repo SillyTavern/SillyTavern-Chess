@@ -471,7 +471,8 @@ async function launchChessGame() {
 function addLaunchButton() {
     const launchButton = document.createElement('div');
     launchButton.id = 'chess-launch';
-    launchButton.classList.add('list-group-item', 'flex-container', 'flexGap5');
+    launchButton.classList.add('list-group-item', 'flex-container', 'flexGap5', 'interactable');
+    launchButton.tabIndex = 0;
     launchButton.title = 'Launch Chess Game';
     const chessIcon = document.createElement('i');
     chessIcon.classList.add('fa-solid', 'fa-chess');
@@ -480,7 +481,9 @@ function addLaunchButton() {
     chessText.textContent = 'Play Chess';
     launchButton.appendChild(chessText);
 
-    const extensionsMenu = document.getElementById('extensionsMenu');
+    const extensionsMenu = document.getElementById('chess_wand_container') ?? document.getElementById('extensionsMenu');
+    extensionsMenu.classList.add('interactable');
+    extensionsMenu.tabIndex = 0;
 
     if (!extensionsMenu) {
         throw new Error('Could not find the extensions menu');
