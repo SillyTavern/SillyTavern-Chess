@@ -24,8 +24,8 @@ const generateRaw = await importFromScript('generateRaw');
 class ChessGame {
     static gamesLaunched = 0;
 
-    static opponentMovePrompt = "You are a world-renowned chess grandmaster. You are given the representation of a chessboard state using the Forsyth-Edwards Notation (FEN) and ASCII. Select the best possible move from the list in algebraic notation and reply with JUST the move, e.g. 'Nc6'. You are playing as {{color}}.";
-    static commentPrompt = "{{char}} played a game of chess against {{user}}. {{user}} played as {{color}} and {{char}} played as {{opponent}}, and {{outcome}}! The final state of the board state in FEN notation: {{fen}}. Write a {{random:witty,playful,funny,quirky,zesty}} comment about the game from {{char}}'s perspective.";
+    static opponentMovePrompt = 'You are a world-renowned chess grandmaster. You are given the representation of a chessboard state using the Forsyth-Edwards Notation (FEN) and ASCII. Select the best possible move from the list in algebraic notation and reply with JUST the move, e.g. \'Nc6\'. You are playing as {{color}}.';
+    static commentPrompt = '{{char}} played a game of chess against {{user}}. {{user}} played as {{color}} and {{char}} played as {{opponent}}, and {{outcome}}! The final state of the board state in FEN notation: {{fen}}. Write a {{random:witty,playful,funny,quirky,zesty}} comment about the game from {{char}}\'s perspective.';
 
     constructor(color) {
         if (color === 'random') {
@@ -195,7 +195,7 @@ class ChessGame {
             this.game.move({
                 from: source,
                 to: target,
-                promotion: 'q' // NOTE: always promote to a queen for example simplicity
+                promotion: 'q', // NOTE: always promote to a queen for example simplicity
             });
 
             // Update position on board
@@ -223,8 +223,8 @@ class ChessGame {
         // get list of possible moves for this square
         const moves = this.game.moves({
             square: square,
-            verbose: true
-        })
+            verbose: true,
+        });
 
         // exit if there are no moves available for this square
         if (moves.length === 0) {
@@ -245,7 +245,7 @@ class ChessGame {
     }
 
     onSnapEnd() {
-        this.board.position(this.game.fen())
+        this.board.position(this.game.fen());
     }
 
     isOpponentTurn() {
